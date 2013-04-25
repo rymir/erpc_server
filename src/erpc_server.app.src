@@ -1,0 +1,17 @@
+{application, erpc_server,
+   [{description, "ERPC Server"},
+    {vsn, "0.0.1"},
+    {modules, 
+	[erpc_call_skeleton,
+         erpc_connection_endpoint,
+	 erpc_stream_send,
+	 erpc_file_stream,
+         erpc_srv,
+         erpc_srv_appsup]
+    },
+    {registered, [erpc_srv]},
+    {applications, [kernel, stdlib]},
+    {mod, {erpc_srv_appsup, []}},
+    {env, [{server_port,55555},{allowed_modules,[erpc_test_module]}]}
+]}.
+ 
