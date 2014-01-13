@@ -1,5 +1,5 @@
 %%% File    : erpc_srv_appsup.erl
-%%% Description : 
+%%% Description :
 
 -module(erpc_srv_appsup).
 
@@ -22,7 +22,7 @@
 %%====================================================================
 start(_Type, Args) ->
   case start_link(Args) of
-    {ok, Pid} -> 
+    {ok, Pid} ->
       {ok, Pid};
     Error ->
       Error
@@ -42,11 +42,13 @@ start_link(Args) ->
 %% Supervisor callbacks
 %%====================================================================
 init([]) ->
-  SupFlags = {one_for_one, 200, 600},
+  SupFlags = {one_for_all, 200, 600},
   {ok,Port} = application:get_env(erpc_server,server_port),
   ERPC  = {erpc_srv,{erpc_srv,start_link,[Port]},
-	      permanent,2000,worker,[erpc_srv]},
-  {ok,{SupFlags, [ERPC]}}.
+	      transient,2000,worker,[erpc_srv]},
+  ERPCAcceptorSup = {erpc_acceptor_sup, {erpc_acceptor_sup, start_link, []},
+                    transient, infinity, supervisor, [erpc_acceptor_sup]},
+  {ok,{SupFlags, [ERPCAcceptorSup, ERPC]}}.
 
 %%====================================================================
 %% Internal functions

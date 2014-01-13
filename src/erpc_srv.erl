@@ -2,9 +2,9 @@
 %%%-------------------------------------------------------------------
 %%% File    : erpc_srv.erl
 %%% Author  : Rudolph van Graan <>
-%%% Description : 
+%%% Description :
 %%%  This is the server that accepts connections from a
-%%%  erpc client           
+%%%  erpc client
 %%%
 %%% Created : 11 Nov 2006 by Rudolph van Graan <>
 %%% Copyright: (C) 2006,2007 by Rudolph van Graan
@@ -12,17 +12,17 @@
 -module(erpc_srv).
 
 -export([start/1,
-	 start_link/1,
-	 stop/0]).
+         start_link/1,
+         new_connection/1]).
 
 %% gen_server callbacks
--export([init/1, 
-	 handle_call/3, 
-	 handle_info/2, 
-	 terminate/2, 
-	 code_change/3]).
+-export([init/1,
+         handle_call/3,
+         handle_info/2,
+         terminate/2,
+         code_change/3]).
 
--record(state, {listen_socket, port }).
+-record(state, {listen_socket, port}).
 
 %%====================================================================
 %% External functions
@@ -33,50 +33,42 @@
 %%--------------------------------------------------------------------
 
 start(Port) ->
-  gen_server:start({local,?MODULE},?MODULE, [Port], []).
-
+    gen_server:start({local,?MODULE},?MODULE, [Port], []).
 
 start_link(Port) ->
-  gen_server:start_link({local,?MODULE},?MODULE, [Port], []).
+    gen_server:start_link({local,?MODULE},?MODULE, [Port], []).
 
+new_connection(ClientSocket) ->
+    ok = gen_server:call(?MODULE, {new_connection, ClientSocket}).
 
-stop() ->
-  gen_server:call(?MODULE,stop).
 %%====================================================================
 %% Server functions
 %%====================================================================
 
 init([Port]) ->
-  process_flag(trap_exit,true),
-  case gen_tcp:listen(Port,[{active,false},
-			    {reuseaddr,true}]) of
-    {ok,ListenSocket} ->
-      MyPid = self(),
-      AcceptPid = spawn_link(fun() -> accept(MyPid,ListenSocket) end),
-      ok = gen_tcp:controlling_process(ListenSocket,AcceptPid),
-      {ok, #state{listen_socket = ListenSocket,
-		  port = Port
-		 }};
-    {error,Reason} ->
-      error_logger:warning_report([{subsystem,"ERPC SRV"},
-				   {description,"ERPC Unable to listen to ERPC Port"},
-				   {pid,self()},
-				   {reason,Reason},
-				   {port,Port}]),
-      {ok, #state{
-		  port = Port
-		 }}
-  end.
+    process_flag(trap_exit,true),
+    case gen_tcp:listen(Port,[{active,false},
+                              {reuseaddr,true}]) of
+        {ok,ListenSocket} ->
+            ServerPid = self(),
+            {ok, AcceptorPid} = erpc_acceptor_sup:start_acceptor(ListenSocket),
+            ok = gen_tcp:controlling_process(ListenSocket, AcceptorPid),
+            {ok, #state{listen_socket = ListenSocket,
+                        port = Port}};
+        {error,Reason} ->
+            error_logger:warning_report([{subsystem,"ERPC SRV"},
+                                         {description,"ERPC Unable to listen to ERPC Port"},
+                                         {pid,self()},
+                                         {reason,Reason},
+                                         {port,Port}]),
+            {ok, #state{port = Port}}
+    end.
 
 %%--------------------------------------------------------------------
 handle_call({new_connection,ClientSocket}, _From, State) ->
   {ok,Pid} = erpc_connection_endpoint:start_link(ClientSocket),
   ok = gen_tcp:controlling_process(ClientSocket,Pid),
-  {reply,ok,State};
-
-handle_call(stop, _From, State) ->
-  {stop,normal,ok,State}.
-
+  {reply,ok,State}.
 
 %%--------------------------------------------------------------------
 handle_info(_Info, State) ->
@@ -84,22 +76,9 @@ handle_info(_Info, State) ->
 
 %%--------------------------------------------------------------------
 terminate(_Reason, State) ->
-  Socket =  State#state.listen_socket,
+  Socket = State#state.listen_socket,
   ok = gen_tcp:close(Socket).
 
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
-
-
-%% Listen socket accept process
-
-accept(ServerPid,ListenSocket) ->
-  case gen_tcp:accept(ListenSocket) of
-    {ok,ClientSocket} ->
-      ok = gen_tcp:controlling_process(ClientSocket,ServerPid),
-      ok = gen_server:call(?MODULE,{new_connection,ClientSocket}),
-      accept(ServerPid,ListenSocket);
-    {error,closed} ->
-      ok
-  end.
