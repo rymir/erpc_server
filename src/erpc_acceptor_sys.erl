@@ -2,18 +2,18 @@
 -copyright("2013, Erlang Solutions Ltd.").
 
 %% API
--export([start_link/1, init/1]).
+-export([start_link/2, init/1]).
 
 
 %% ===============================================================
 %% External functions
 %% ===============================================================
 
-start_link(ListenSocket) ->
-    proc_lib:start_link(?MODULE, init, [[self(), ListenSocket]]).
+start_link(ServerPid, ListenSocket) ->
+    proc_lib:start_link(?MODULE, init, [[self(), ServerPid, ListenSocket]]).
 
-init([ServerPid, ListenSocket]) ->
-    ok = proc_lib:init_ack(ServerPid, {ok, self()}),
+init([ParentPid, ServerPid, ListenSocket]) ->
+    ok = proc_lib:init_ack(ParentPid, {ok, self()}),
     accept(ServerPid, ListenSocket).
 
 %%%===============================================================

@@ -16,4 +16,4 @@ init([]) ->
 	{ok, {RestartSpec, ChildrenSpec}}.
 
 start_acceptor(ListenSocket) ->
-    supervisor:start_child(?MODULE, [ListenSocket]).
+    supervisor:start_child(?MODULE, [self(), ListenSocket]).
